@@ -119,7 +119,7 @@ def main():
             continue
 
         mov_path = Path(r.path)
-        ref_path = a.reference if single else (a.ref_dir / mov_path.name)
+        ref_path = a.reference if single else (a.ref_dir)
         if not ref_path.exists():
             print(f"⚠ reference missing for {mov_path.name}, skipping"); continue
 
