@@ -1,0 +1,5 @@
+names:
+- Package
+path: E:\Masters_College_Work\RA_CyLab\X-Ray\yolo_type\dataset
+train: images/train
+val: images/train

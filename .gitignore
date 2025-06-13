@@ -1,0 +1,17 @@
+# Ignore model files
+*.pt
+*.pth
+*.ckpt
+*.pkl
+
+# Ignore model files in specific directories
+yolo-matcher/*.pt
+yolo-matcher/*.pth
+yolo-matcher/*.ckpt
+yolo-matcher/*.pkl
+
+# Ignore training logs
+*.log
+
+# Ignore yolo runs
+yolo-matcher/runs/
