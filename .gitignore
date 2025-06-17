@@ -15,3 +15,5 @@ yolo-matcher/*.pkl
 
 # Ignore yolo runs
 yolo-matcher/runs/
+
+results/
