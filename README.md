@@ -1,5 +1,3 @@
-Here's the updated and fully aligned `README.md` with spots left for your sample code runs:
-
 ---
 
 # 🩻 XRay-Clarity-Biometrics
