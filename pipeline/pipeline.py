@@ -21,7 +21,7 @@ from .align_utils import rotate_align, rotate_align_two_refs
 def process_instance_dual(img_mov, front_ref, back_ref, out_dir: Path,
                           seg: Segmenter, *,
                           class_filter=None, dump_debug=False,
-                          angle_step: int = 5):
+                          angle_step: int = 5, score_mode: str = "hybrid"):
     img_m = cv2.imread(str(img_mov))
     img_f = cv2.imread(str(front_ref))
     img_b = cv2.imread(str(back_ref))
@@ -48,7 +48,7 @@ def process_instance_dual(img_mov, front_ref, back_ref, out_dir: Path,
         best_rot, ang, side, sim, *_ = rotate_align_two_refs(
             cropM, img_f, img_b, inst_dir,
             device=seg.device, angle_step=angle_step,
-            dump_debug=dump_debug, model_name="vit_base_patch14_dinov2.lvd142m")             # <── pass the flag
+            dump_debug=dump_debug, model_name="resnet50", score_mode=score_mode)             # <── pass the flag
 
         # save ONLY the winning reference
         best_ref = img_f if side == "front" else img_b
@@ -61,7 +61,7 @@ def process_instance_dual(img_mov, front_ref, back_ref, out_dir: Path,
 def batch_dir_dual(img_dir: Path, front_dir: Path, back_dir: Path,
                    out_root: Path, ckpt: Path, *,
                    class_filter=None, dump_debug=False,
-                   imgsz=640, conf=0.1, device="cuda", angle_step=5):
+                   imgsz=640, conf=0.1, device="cuda", angle_step=5, score_mode="hybrid"):
     seg = Segmenter(ckpt, imgsz=imgsz, conf=conf, device=device)
 
     for img in sorted(img_dir.glob("*")):
@@ -73,23 +73,23 @@ def batch_dir_dual(img_dir: Path, front_dir: Path, back_dir: Path,
         process_instance_dual(img, front, back, out_root, seg,
                               class_filter=class_filter,
                               dump_debug=dump_debug,
-                              angle_step=angle_step)
+                              angle_step=angle_step, score_mode=score_mode)
 
 
 def single_pair_dual(moving: Path, front_ref: Path, back_ref: Path,
                      out_dir: Path, ckpt: Path, *,
                      class_filter=None, dump_debug=False,
-                     imgsz=640, conf=0.1, device="cuda", angle_step=5):
+                     imgsz=640, conf=0.1, device="cuda", angle_step=5, score_mode="hybrid"):
     seg = Segmenter(ckpt, imgsz=imgsz, conf=conf, device=device)
     process_instance_dual(moving, front_ref, back_ref, out_dir, seg,
                           class_filter=class_filter,
                           dump_debug=dump_debug,
-                          angle_step=angle_step)
+                          angle_step=angle_step, score_mode=score_mode)
 
 
 # ─────────────────────── legacy single-reference helpers ────────────────
 def process_instance(img_mov, img_ref, out_dir: Path, seg: Segmenter, *,
-                     class_filter=None, dump_debug=False, angle_step=5):
+                     class_filter=None, dump_debug=False, angle_step=5, score_mode="hybrid"):
     """(Older) helper that aligns against a single template."""
     img_m = cv2.imread(str(img_mov))
     img_r = cv2.imread(str(img_ref))
@@ -115,7 +115,8 @@ def process_instance(img_mov, img_ref, out_dir: Path, seg: Segmenter, *,
         try:
             best_rot, ang, sim = rotate_align(
                 cropM, img_r, inst_dir,
-                device=seg.device, angle_step=angle_step, model_name="vit_base_patch14_dinov2.lvd142m")
+                device=seg.device, angle_step=angle_step, model_name="resnet50", score_mode=score_mode,
+                dump_debug=dump_debug)
         except Exception as e:
             print(f"× align fail {img_mov} inst{i}: {e}")
         else:
@@ -125,7 +126,7 @@ def process_instance(img_mov, img_ref, out_dir: Path, seg: Segmenter, *,
 
 def batch_dir(img_dir: Path, ref_dir: Path, out_root: Path, ckpt: Path, *,
               class_filter=None, dump_debug=False,
-              imgsz=640, conf=0.1, device="cuda", angle_step=5):
+              imgsz=640, conf=0.1, device="cuda", angle_step=5, score_mode="hybrid"):
     seg = Segmenter(ckpt, imgsz=imgsz, conf=conf, device=device)
     for img in sorted(img_dir.glob("*")):
         ref = ref_dir / img.name
@@ -135,14 +136,14 @@ def batch_dir(img_dir: Path, ref_dir: Path, out_root: Path, ckpt: Path, *,
         process_instance(img, ref, out_root, seg,
                          class_filter=class_filter,
                          dump_debug=dump_debug,
-                         angle_step=angle_step)
+                         angle_step=angle_step, score_mode=score_mode)
 
 
 def single_pair(moving: Path, reference: Path, out_dir: Path, ckpt: Path, *,
                 class_filter=None, dump_debug=False,
-                imgsz=640, conf=0.1, device="cuda", angle_step=5):
+                imgsz=640, conf=0.1, device="cuda", angle_step=5, score_mode="hybrid"):
     seg = Segmenter(ckpt, imgsz=imgsz, conf=conf, device=device)
     process_instance(moving, reference, out_dir, seg,
                      class_filter=class_filter,
                      dump_debug=dump_debug,
-                     angle_step=angle_step)
+                     angle_step=angle_step, score_mode=score_mode)

@@ -153,7 +153,8 @@ def run_dual_job(img_dir: Path,
                  device: str       = "cuda",
                  class_filter: set = None,
                  dump_debug: bool  = False,
-                 angle_step: int   = 5):
+                 angle_step: int   = 5, 
+                 score_mode: str   = "hybrid"):
     """
     1.  Clone `front_tpl` & `back_tpl` into two temp directories so each
         image in `img_dir` has a same-named reference file.
@@ -187,13 +188,14 @@ def run_dual_job(img_dir: Path,
         class_filter = class_filter,
         dump_debug   = dump_debug,
         angle_step   = angle_step,
+        score_mode   =  score_mode
     )
 
 
 # ─────────────────────── common settings ───────────────────────
 CKPT = Path(r"E:\Masters_College_Work\RA_CyLab\X-Ray\yolo_type\runs\segment\train\weights\best.pt")
 COMMON = dict(imgsz=640, conf=0.1, device="cuda",
-              class_filter={0}, dump_debug=True)
+              class_filter={0}, dump_debug=True, angle_step=90, score_mode="rmse")
 
 # ─────────────────────── jobs list ───────────────────────
 jobs = [
