@@ -48,7 +48,7 @@ def process_instance_dual(img_mov, front_ref, back_ref, out_dir: Path,
         best_rot, ang, side, sim, *_ = rotate_align_two_refs(
             cropM, img_f, img_b, inst_dir,
             device=seg.device, angle_step=angle_step,
-            dump_debug=dump_debug, model_name="resnet50", score_mode=score_mode)             # <── pass the flag
+            dump_debug=dump_debug, model_name="dinov2_vits14", score_mode=score_mode)             # <── pass the flag
 
         # save ONLY the winning reference
         best_ref = img_f if side == "front" else img_b
@@ -115,7 +115,7 @@ def process_instance(img_mov, img_ref, out_dir: Path, seg: Segmenter, *,
         try:
             best_rot, ang, sim = rotate_align(
                 cropM, img_r, inst_dir,
-                device=seg.device, angle_step=angle_step, model_name="resnet50", score_mode=score_mode,
+                device=seg.device, angle_step=angle_step, model_name="dinov2_vits14", score_mode=score_mode,
                 dump_debug=dump_debug)
         except Exception as e:
             print(f"× align fail {img_mov} inst{i}: {e}")

@@ -31,7 +31,7 @@ cd XRay-Clarity-Biometrics
 ### 2. Create a Python Environment
 
 ```bash
-conda create -n xray_clarity python=3.9 -y
+conda create -n xray_clarity python=3.11 -y
 conda activate xray_clarity
 ```
 
