@@ -1,53 +1,184 @@
+# #!/usr/bin/env python3
+# """
+# train_and_visualize_yolo_seg.py
+# ================================
+# 1. Creates a minimal data.yaml that points to your images/labels-seg structure
+# 2. Trains a YOLO-v8 segmentation model
+# 3. Runs inference on *all* training images and saves visualisations
+
+# Requirements
+# ------------
+# pip install ultralytics opencv-python           # full OpenCV build (GUI optional)
+
+# Directory expected
+# ------------------
+# dataset/
+#  ├─ images/
+#  │   └─ train/  *.jpg|png|bmp
+#  └─ labels-seg/          ←  bbox+polygon files from the previous converter
+#      └─ train/  *.txt
+
+# Usage
+# -----
+# python train_and_visualize_yolo_seg.py --root dataset \
+#        --names object                               \
+#        --model yolov8n-seg.pt                       \
+#        --epochs 100 --imgsz 640 --batch 4
+# """
+# import os                    
+# os.environ["WANDB_DISABLED"] = "true"
+# import argparse, yaml, shutil, sys
+# from pathlib import Path
+# from ultralytics import YOLO
+
+
+# # ─────────────────────────── helper: YAML ────────────────────────────────
+# def write_data_yaml(root: Path, class_names, split='train') -> Path:
+#     """Create a temporary data.yaml for Ultralytics-YOLO."""
+#     yaml_path = root / 'data.yaml'
+#     data = dict(
+#         path=str(root),
+#         train=f'images/{split}',
+#         val=f'images/{split}',           # over-fit on train for a quick check
+#         names=class_names
+#     )
+#     with open(yaml_path, 'w') as f:
+#         yaml.safe_dump(data, f)
+#     return yaml_path
+
+
+# # ─────────────────────────── main flow ───────────────────────────────────
+# def parse_args():
+#     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+#     p.add_argument('--root',  type=Path, required=True, help='dataset root folder')
+#     p.add_argument('--names', nargs='+', required=True,
+#                    help='space-separated class names, e.g. --names crack rust')
+#     p.add_argument('--model', default='yolov8n-seg.pt', help='base checkpoint')
+#     p.add_argument('--epochs', default=100, type=int)
+#     p.add_argument('--imgsz',  default=640, type=int)
+#     p.add_argument('--batch',  default=4,  type=int)
+#     p.add_argument('--device', default='0', help='"cpu" or cuda index (e.g. 0)')
+#     return p.parse_args()
+
+
+# def main():
+#     args = parse_args()
+
+#     # 1. create data.yaml
+#     data_yaml = write_data_yaml(args.root, args.names)
+
+#     # 2. TRAIN
+#     print('\n=== Training YOLO-v8 segmentation model ===')
+#     model = YOLO(args.model)
+#     train_res = model.train(
+#         data=str(data_yaml),
+#         epochs=args.epochs,
+#         imgsz=args.imgsz,
+#         batch=args.batch,
+#         device=args.device,
+#         close_mosaic=True, mosaic=0,         # helpful when over-fitting
+#     )
+
+#     best_ckpt = Path(train_res.save_dir) / 'weights/best.pt'
+#     print(f'\n✓ Training finished. Best weights: {best_ckpt}')
+
+#     # 3. VISUALISE on *all* training images
+#     print('\n=== Predicting on training set and saving overlays ===')
+#     vis_dir = Path('runs/segment/train_vis')
+#     if vis_dir.exists():
+#         shutil.rmtree(vis_dir)              # clean previous run
+#     vis_dir.mkdir(parents=True, exist_ok=True)
+
+#     model = YOLO(str(best_ckpt))            # reload best weights
+#     model.predict(
+#         source=str(args.root / 'images/train'),
+#         imgsz=args.imgsz,
+#         project='runs/segment',
+#         name='train_vis',
+#         exist_ok=True,
+#         save=True,       # writes annotated images (PNG) into the folder above
+#         conf=0.1,        # low threshold to see every mask
+#         max_det=300,
+#         stream=False
+#     )
+
+#     print(f'\n✓ Visualisations saved to {vis_dir.resolve()}')
+#     print('Open any PNG inside that folder to inspect the masks.')
+
+
+# if __name__ == '__main__':
+#     main()
+
+
 #!/usr/bin/env python3
 """
-train_and_visualize_yolo_seg.py
-================================
-1. Creates a minimal data.yaml that points to your images/labels-seg structure
-2. Trains a YOLO-v8 segmentation model
-3. Runs inference on *all* training images and saves visualisations
+train_and_visualize_yolo_seg_scans.py
 
-Requirements
-------------
-pip install ultralytics opencv-python           # full OpenCV build (GUI optional)
-
-Directory expected
-------------------
-dataset/
+Dataset layout (example)
+root_folder/
  ├─ images/
- │   └─ train/  *.jpg|png|bmp
- └─ labels-seg/          ←  bbox+polygon files from the previous converter
-     └─ train/  *.txt
+ │   └─ scans/
+ │       ├─ counterfeit/  *.jpg|png|bmp
+ │       └─ mint/        *.jpg|png|bmp
+ └─ labels/
+     └─ scans/
+         ├─ counterfeit/  *.txt  (seg polygons)
+         └─ mint/         *.txt
 
 Usage
 -----
-python train_and_visualize_yolo_seg.py --root dataset \
-       --names object                               \
-       --model yolov8n-seg.pt                       \
-       --epochs 100 --imgsz 640 --batch 4
+python train_and_visualize_yolo_seg_scans.py --root root_folder \
+       --names object --model yolov8n-seg.pt --epochs 100 --imgsz 640 --batch 4
 """
-import os                    
+import os
 os.environ["WANDB_DISABLED"] = "true"
-import argparse, yaml, shutil, sys
+import argparse, yaml, shutil
 from pathlib import Path
 from ultralytics import YOLO
 
-
-# ─────────────────────────── helper: YAML ────────────────────────────────
-def write_data_yaml(root: Path, class_names, split='train') -> Path:
-    """Create a temporary data.yaml for Ultralytics-YOLO."""
+# ───────────────────────── helper: YAML ─────────────────────────
+def write_data_yaml(root: Path, class_names, scans_subdir="scans") -> Path:
+    """
+    Create data.yaml for Ultralytics-YOLO with images under images/scans
+    and labels auto-resolved under labels/scans.
+    """
     yaml_path = root / 'data.yaml'
     data = dict(
         path=str(root),
-        train=f'images/{split}',
-        val=f'images/{split}',           # over-fit on train for a quick check
+        train=f'images/{scans_subdir}',
+        val=f'images/{scans_subdir}',     # use the same set by default
         names=class_names
     )
     with open(yaml_path, 'w') as f:
         yaml.safe_dump(data, f)
     return yaml_path
 
+def check_labels_exist(root: Path, scans_subdir="scans", exts=(".jpg", ".jpeg", ".png", ".bmp")):
+    """
+    Quick sanity check: for each image under images/scans/**,
+    verify a matching labels/scans/**.txt exists.
+    """
+    img_root = root / "images" / scans_subdir
+    lbl_root = root / "labels" / scans_subdir
+    missing = []
 
-# ─────────────────────────── main flow ───────────────────────────────────
+    for img in img_root.rglob("*"):
+        if img.is_file() and img.suffix.lower() in exts:
+            rel = img.relative_to(img_root).with_suffix(".txt")
+            lbl = lbl_root / rel
+            if not lbl.exists():
+                missing.append((img, lbl))
+
+    if missing:
+        print(f"[WARN] {len(missing)} images have no matching label .txt:")
+        for i, (img, lbl) in enumerate(missing[:20], 1):
+            print(f"  {i:>3}. {img}  -> expected {lbl}")
+        if len(missing) > 20:
+            print(f"  ... and {len(missing) - 20} more")
+    else:
+        print("✓ Label sanity check passed (1:1 images↔labels).")
+
+# ─────────────────────────── args ───────────────────────────────
 def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('--root',  type=Path, required=True, help='dataset root folder')
@@ -58,14 +189,19 @@ def parse_args():
     p.add_argument('--imgsz',  default=640, type=int)
     p.add_argument('--batch',  default=4,  type=int)
     p.add_argument('--device', default='0', help='"cpu" or cuda index (e.g. 0)')
+    p.add_argument('--scans-subdir', default='scans',
+                   help='subdirectory under images/ and labels/ that holds data')
     return p.parse_args()
 
-
+# ─────────────────────────── main ───────────────────────────────
 def main():
     args = parse_args()
 
+    # 0. quick sanity check that mirrors exist
+    check_labels_exist(args.root, scans_subdir=args.scans_subdir)
+
     # 1. create data.yaml
-    data_yaml = write_data_yaml(args.root, args.names)
+    data_yaml = write_data_yaml(args.root, args.names, scans_subdir=args.scans_subdir)
 
     # 2. TRAIN
     print('\n=== Training YOLO-v8 segmentation model ===')
@@ -76,35 +212,34 @@ def main():
         imgsz=args.imgsz,
         batch=args.batch,
         device=args.device,
-        close_mosaic=True, mosaic=0,         # helpful when over-fitting
+        close_mosaic=True, mosaic=0,
     )
 
     best_ckpt = Path(train_res.save_dir) / 'weights/best.pt'
     print(f'\n✓ Training finished. Best weights: {best_ckpt}')
 
-    # 3. VISUALISE on *all* training images
-    print('\n=== Predicting on training set and saving overlays ===')
+    # 3. VISUALISE on the whole scans set
+    print('\n=== Predicting on images/scans and saving overlays ===')
     vis_dir = Path('runs/segment/train_vis')
     if vis_dir.exists():
-        shutil.rmtree(vis_dir)              # clean previous run
+        shutil.rmtree(vis_dir)
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    model = YOLO(str(best_ckpt))            # reload best weights
+    model = YOLO(str(best_ckpt))  # reload best weights
     model.predict(
-        source=str(args.root / 'images/train'),
+        source=str(args.root / 'images' / args.scans_subdir),
         imgsz=args.imgsz,
         project='runs/segment',
         name='train_vis',
         exist_ok=True,
-        save=True,       # writes annotated images (PNG) into the folder above
-        conf=0.1,        # low threshold to see every mask
+        save=True,       # writes annotated images (PNG)
+        conf=0.1,
         max_det=300,
         stream=False
     )
 
     print(f'\n✓ Visualisations saved to {vis_dir.resolve()}')
     print('Open any PNG inside that folder to inspect the masks.')
-
 
 if __name__ == '__main__':
     main()
