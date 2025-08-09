@@ -17,7 +17,7 @@ yolo-matcher/*.pkl
 yolo-matcher/runs/
 
 results/
-yolo-matcher/dataset/*
-yolo-matcher/dataset_old/*
-yolo-matcher/runs_old/*
-yolo-matcher/runs/*
+yolo-matcher/dataset/
+yolo-matcher/dataset_old/
+yolo-matcher/runs_old/
+yolo-matcher/runs/
