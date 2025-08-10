@@ -99,10 +99,13 @@ def predict_with_oriented_boxes(weights_path: Path, args):
         shutil.rmtree(vis_dir)
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    # Optional txt export dir
+    # TXT export dir (mirrors dataset structure)
     obb_txt_root = Path('runs/segment/train_vis_obb_txt')
 
-    sources = str(args.root / 'images' / args.scans_subdir / '**' / '*')
+    # Absolute path to images/scans
+    root_images = (args.root / 'images' / args.scans_subdir).resolve()
+
+    sources = str(root_images / '**' / '*')
     results = model.predict(
         source=sources,
         imgsz=args.imgsz,
@@ -114,41 +117,43 @@ def predict_with_oriented_boxes(weights_path: Path, args):
     )
 
     for r in results:
-        # Load original image (ultralytics already has it, but we’ll re-open for drawing)
-        im_path = Path(r.path)
+        im_path = Path(r.path).resolve()
         img = cv2.imread(str(im_path))
         if img is None:
             continue
         H, W = img.shape[:2]
 
-        # r.boxes.cls -> class ids; r.masks.xy -> list of Nx2 polygons in original scale
         if r.masks is None:
-            # Fallback: draw axis-aligned if no masks available
+            # fallback: draw axis-aligned boxes
             for b, c in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.cls.cpu().numpy().astype(int)):
-                x1,y1,x2,y2 = b.astype(int)
-                cv2.rectangle(img, (x1,y1), (x2,y2), (0,255,255), 2)
-            out_path = vis_dir / im_path.name
-            cv2.imwrite(str(out_path), img)
+                x1, y1, x2, y2 = b.astype(int)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 255), 2)
+            cv2.imwrite(str(vis_dir / im_path.name), img)
             continue
 
-        polys = r.masks.xy  # list of (N,2) arrays
+        polys = r.masks.xy
         clses = r.boxes.cls.cpu().numpy().astype(int)
-        # Ultralytics aligns masks and boxes order; safe to zip
+
         for poly, cls_id in zip(polys, clses):
-            box = polygon_to_minrect(poly)           # 4x2
+            box = polygon_to_minrect(poly)
             draw_obb(img, box, color=(0, 0, 255), thickness=2)
+
             if args.save_obb:
-                # write a .txt next to our outputs (or per original tree)
-                rel = im_path.relative_to(args.root / 'images' / args.scans_subdir)
-                txt_path = obb_txt_root / rel.with_suffix('.txt')
+                try:
+                    rel = im_path.relative_to(root_images)
+                except ValueError:
+                    # If not under root_images, just use filename
+                    rel = im_path.name
+                txt_path = obb_txt_root / rel
+                txt_path = txt_path.with_suffix('.txt')
                 save_obb_txt(txt_path, int(cls_id), box, W, H)
 
-        out_path = vis_dir / im_path.name
-        cv2.imwrite(str(out_path), img)
+        cv2.imwrite(str(vis_dir / im_path.name), img)
 
     print(f"\n✓ Oriented visualizations saved to {vis_dir.resolve()}")
     if args.save_obb:
         print(f"✓ OBB txt files saved to {obb_txt_root.resolve()} (class x1 y1 x2 y2 x3 y3 x4 y4, normalized)")
+
 
 # ─────────────────────────── main ───────────────────────────────
 def main():
@@ -157,7 +162,7 @@ def main():
     data_yaml = write_data_yaml(args.root, args.names, scans_subdir=args.scans_subdir)
 
     # Train unless predict-only is requested with weights
-    if args.predict-only and args.weights:
+    if args.predict_only and args.weights:
         best_ckpt = Path(args.weights)
     else:
         print('\n=== Training YOLO-v8 segmentation model ===')
