@@ -227,7 +227,7 @@ def main():
 
     model = YOLO(str(best_ckpt))  # reload best weights
     model.predict(
-        source=str(args.root / 'images' / args.scans_subdir),
+        source=str(args.root / 'images' / args.scans_subdir / '**' / '*'),
         imgsz=args.imgsz,
         project='runs/segment',
         name='train_vis',
