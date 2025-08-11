@@ -38,8 +38,8 @@ def write_data_yaml(root: Path, class_names, scans_subdir="scans",
     yaml_path = root / 'data.yaml'
     data = dict(
         path=str(root),
-        train=str(train_list) if train_list else f'images/{scans_subdir}',
-        val=str(val_list)     if val_list   else f'images/{scans_subdir}',
+        train=str(train_list) if train_list and train_list.is_absolute() else str(root / train_list) if train_list else f'images/{scans_subdir}',
+        val=str(val_list) if val_list and val_list.is_absolute() else str(root / val_list) if val_list else f'images/{scans_subdir}',
         names=class_names
     )
     with open(yaml_path, 'w') as f:
