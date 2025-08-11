@@ -146,10 +146,10 @@ def main():
         cls_val   = outdir / "cls_val.txt"
         with open(cls_train, "w") as f:
             for r in all_train:
-                f.write(f"{r['abs_path']} {r['product']}\n")
+                f.write(f"{r['abs_path']},{r['product']}\n")
         with open(cls_val, "w") as f:
             for r in all_val:
-                f.write(f"{r['abs_path']} {r['product']}\n")
+                f.write(f"{r['abs_path']},{r['product']}\n")
         print(f"Also wrote:\n  {cls_train}\n  {cls_val}")
 
 if __name__ == "__main__":
