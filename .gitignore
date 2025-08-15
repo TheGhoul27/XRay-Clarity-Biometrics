@@ -17,6 +17,7 @@ yolo-matcher/*.pkl
 yolo-matcher/runs/
 
 results/
+yolo-matcher/cropped/
 yolo-matcher/dataset/
 yolo-matcher/dataset_old/
 yolo-matcher/runs_old/
