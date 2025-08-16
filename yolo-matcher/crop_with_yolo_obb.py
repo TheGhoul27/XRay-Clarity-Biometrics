@@ -78,6 +78,7 @@ class YOLOSegCropper:
         self.conf_thres = float(conf_thres)
         self.imgsz = int(imgsz)
         self.max_side = max_side if (max_side is None or int(max_side) > 0) else None
+        self.normalize_orientation = True
 
     def _resize_long_side(self, img: np.ndarray) -> Tuple[np.ndarray, float]:
         if not self.max_side:
@@ -108,61 +109,75 @@ class YOLOSegCropper:
         x0 = (w - tw) // 2
         return img[y0:y0 + th, x0:x0 + tw].copy()
 
+    def _ensure_portrait(self, img: np.ndarray) -> np.ndarray:
+        """Rotate 90° CCW if width > height so the longest side is vertical."""
+        if img is None or img.size == 0:
+            return img
+        h, w = img.shape[:2]
+        return (cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE) if h < w else img)
+
     def crop_with_vis(self, img_bgr: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        """
-        Returns (crop, vis). 'vis' is None if no polygon is found.
-        """
         orig = img_bgr
         resized, scale = self._resize_long_side(img_bgr)
 
-        # Run prediction (imgsz must be an int to avoid TypeError)
         results = self.model.predict(
-            resized,
-            imgsz=self.imgsz,
-            conf=self.conf_thres,
-            max_det=300,
-            device=None,
-            verbose=False
+            resized, imgsz=self.imgsz, conf=self.conf_thres,
+            max_det=300, device=None, verbose=False
         )
         if not results:
-            return self._center_crop(orig, 0.9), None
+            crop = self._center_crop(orig, 0.9)
+            if self.normalize_orientation:
+                crop = self._ensure_portrait(crop)
+            return crop, None
 
         r = results[0]
 
-        # If no masks, try best box; else center-crop fallback
+        # --- bbox fallback ---
         if r.masks is None or len(r.masks) == 0:
             if r.boxes is not None and len(r.boxes) > 0:
                 confs = r.boxes.conf.cpu().numpy()
                 idx = int(np.argmax(confs))
                 x1, y1, x2, y2 = r.boxes.xyxy.cpu().numpy()[idx].astype(int)
-                # rescale to original
-                x1 = int(x1 / scale); y1 = int(y1 / scale)
-                x2 = int(x2 / scale); y2 = int(y2 / scale)
+                if scale != 1.0:
+                    x1 = int(x1/scale); y1 = int(y1/scale)
+                    x2 = int(x2/scale); y2 = int(y2/scale)
                 x1 = max(0, x1); y1 = max(0, y1)
                 x2 = min(orig.shape[1], x2); y2 = min(orig.shape[0], y2)
                 crop = orig[y1:y2, x1:x2].copy()
-                vis  = orig.copy()
-                cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 255), 2)
-                return (crop if crop.size else self._center_crop(orig, 0.9), vis)
-            return self._center_crop(orig, 0.9), None
+                if crop is None or not crop.size:
+                    crop = self._center_crop(orig, 0.9)
+                if self.normalize_orientation:
+                    crop = self._ensure_portrait(crop)
 
-        # Choose mask with highest confidence
+                vis = orig.copy()
+                cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                return crop, vis
+
+            crop = self._center_crop(orig, 0.9)
+            if self.normalize_orientation:
+                crop = self._ensure_portrait(crop)
+            return crop, None
+
+        # --- mask path ---
         confs = r.boxes.conf.cpu().numpy() if r.boxes is not None else np.array([1.0])
         best_idx = int(np.argmax(confs)) if confs.size > 0 else 0
-
         polys = r.masks.xy
         if best_idx >= len(polys):
             best_idx = 0
-        poly = np.array(polys[best_idx], dtype=np.float32)
 
-        # Rescale polygon back to original coords if we resized
+        poly = np.array(polys[best_idx], dtype=np.float32)
         if scale != 1.0:
             poly = poly / scale
 
         rect = cv2.minAreaRect(poly)
         crop = self._crop_rotated_rect(orig, rect)
-        vis  = draw_obb(orig, polygon_to_minrect(poly))
-        return (crop if crop.size else self._center_crop(orig, 0.9), vis)
+        if crop is None or not crop.size:
+            crop = self._center_crop(orig, 0.9)
+        if self.normalize_orientation:
+            crop = self._ensure_portrait(crop)
+
+        vis = draw_obb(orig, polygon_to_minrect(poly))
+        return crop, vis
 
 # -------------------------- IO helpers --------------------------
 

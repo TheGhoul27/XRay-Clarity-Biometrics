@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, os, re, shutil, csv
+import json, os, re, shutil, csv, random
 from collections import defaultdict
 from typing import Dict, Any
 
@@ -16,7 +16,6 @@ def normalize_face(value: str) -> str | None:
     return None
 
 def existing_path(preferred: str) -> str | None:
-    """Return a path that exists, trying jpg<->tif swap if needed."""
     if os.path.exists(preferred):
         return preferred
     root, ext = os.path.splitext(preferred)
@@ -39,8 +38,8 @@ def main(
     with open(json_path, "r", encoding="utf-8") as f:
         records = json.load(f)
 
-    # Collect first available Face_Up / Face_Down per product (Mint only)
-    groups: Dict[str, Dict[str, str]] = defaultdict(dict)
+    # Collect ALL Face_Up / Face_Down per product (Mint only)
+    groups: Dict[str, Dict[str, list[str]]] = defaultdict(lambda: {"face_up": [], "face_down": []})
     malformed = 0
 
     for r in records:
@@ -56,8 +55,7 @@ def main(
                 malformed += 1
                 continue
 
-            # Save first seen path for each face side
-            groups[product].setdefault(face_key, relpath)
+            groups[product][face_key].append(relpath)
         except Exception:
             malformed += 1
 
@@ -68,14 +66,13 @@ def main(
         dest_dir = os.path.join(out_root, safe)
         os.makedirs(dest_dir, exist_ok=True)
 
-        # Prepare sources if they exist
-        src_up_rel   = faces.get("face_up")
-        src_down_rel = faces.get("face_down")
+        # Randomly pick ONE candidate for each side if available
+        src_up_rel   = random.choice(faces["face_up"]) if faces["face_up"] else None
+        src_down_rel = random.choice(faces["face_down"]) if faces["face_down"] else None
 
         src_up_abs   = existing_path(os.path.join(images_root, src_up_rel)) if src_up_rel else None
         src_down_abs = existing_path(os.path.join(images_root, src_down_rel)) if src_down_rel else None
 
-        # Copy whichever exists
         dst_up = dst_down = None
 
         if src_up_abs:
@@ -98,7 +95,7 @@ def main(
             "dest_face_down": dst_down or "",
         })
 
-    # Write a simple report CSV
+    # Write report CSV
     with open(report_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["product_name","has_face_up","has_face_down","dest_face_up","dest_face_down"])
         writer.writeheader()
@@ -113,7 +110,7 @@ def main(
 
 if __name__ == "__main__":
     main(
-        dataset_root="dataset",
+        dataset_root="cropped",
         json_rel="images/scans/products.json",
         output_rel="pairs",
         report_rel="pairs_report.csv",
